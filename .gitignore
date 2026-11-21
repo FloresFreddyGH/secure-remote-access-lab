@@ -1,0 +1,6 @@
+private/
+raw/
+.env
+*.key
+*.log
+__pycache__/
