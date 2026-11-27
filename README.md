@@ -1,108 +1,95 @@
 # Secure Remote Access & Wake-on-LAN Home Lab
 
-By Freddy Flores · November 20–21, 2026
+By Freddy Flores · November 20–27, 2026
 
-![Remote access project cover](assets/thumbnail.svg)
+**Core lab complete: remote wake from suspend and desktop access verified over an iPhone cellular hotspot.**
 
-**Status: working desktop control and local wake from suspend. Remote wake relay pending.**
+![Project cover](assets/thumbnail.svg)
 
-## My home lab, from my laptop
+## Outcome
 
-I wanted to keep working on my cybersecurity labs when I’m away from my desk. This project connects my Windows laptop to my Ubuntu desktop so I can use the desktop’s applications and reach the environment where I run my lab VMs.
+I can wake my home Ubuntu desktop from a Windows laptop outside my home network, then use its existing desktop session through NoMachine. An HP laptop stays awake at home and sends the local Wake-on-LAN packet. The final test used my iPhone hotspot with cellular data, and I confirmed the desktop woke and NoMachine connected.
 
-I built the setup with **Tailscale for private connectivity**, **NoMachine for desktop control**, and **Wake-on-LAN for waking the wired desktop**. Getting connected was only part of the work: I also tested display behavior, audio, and whether wake settings survived a reboot.
+![Successful remote desktop session](assets/evidence/18-hotspot-remote-desktop-success.png)
 
-<figure><img src="assets/remote-session.png" alt="My Windows laptop displaying the Ubuntu session beside the physical desktop monitor" loading="lazy" style="max-height:520px;max-width:464px;width:100%;object-fit:contain;display:block;margin:auto"><figcaption>My laptop and desktop during the remote-session test. This photo shows the working display connection; it does not by itself prove an off-network connection.</figcaption></figure>
+*Redacted photograph of the final NoMachine session. The cellular connection and successful wake are my recorded test observations; the photograph alone cannot establish the network path or prior power state.*
 
-## What works—and what is still pending
+## Architecture
 
-| Check | Result |
+![Verified access and wake paths](assets/connection-map.svg)
+
+1. The Windows client connects to the HP relay through Tailscale and ordinary OpenSSH.
+2. The relay sends a magic packet over the home LAN to the desktop’s Ethernet adapter.
+3. The desktop resumes from suspend and becomes reachable through Tailscale.
+4. NoMachine connects to the desktop and displays the existing session.
+
+The relay uses home Wi-Fi; the target desktop uses Ethernet. No router port-forward was added for this lab. Tailscale on a sleeping desktop cannot receive a remote wake request, so the awake relay supplies that missing step. This setup does not use Tailscale SSH, an exit node, or subnet routing.
+
+## Equipment and roles
+
+| Component | Role |
 | --- | --- |
-| Ubuntu wired adapter supports magic-packet wake | Verified with ethtool |
-| Wake settings survive a restart | Verified in NetworkManager and on the adapter |
-| Wake from suspend on home Wi-Fi | Passed: the Windows laptop woke Ubuntu |
-| NoMachine desktop control | Working after initial blank-screen troubleshooting |
-| Multiple monitors and desktop audio | Working in my follow-up test |
-| Wake from a phone hotspot | Did not work with the local broadcast command |
-| Unattended wake from outside home | Pending an always-on laptop at home |
-| Wake from full shutdown | Separate verification still needed |
+| Windows laptop | Remote client: SSH, Tailscale and NoMachine |
+| Ubuntu 26.04.1 desktop, Intel i5-14400F | Wired wake target and host for my lab applications/VMs |
+| HP EliteBook 840 G3, i5-6300U, 8 GB RAM, approximately 256 GB SSD | Ubuntu Server 26.04.1 relay, named `home-wake-relay` |
+| 16 GB Kingston USB | Ubuntu Server installation media |
+| Home router and iPhone cellular hotspot | Home LAN and independent off-network test connection |
 
-## How the connection fits together
+## Verified results
 
-**Current remote-access path:** Windows laptop → Tailscale private connection → Ubuntu desktop → NoMachine session.
+| Test | Result and evidence |
+| --- | --- |
+| Ethernet magic-packet support | `ethtool` showed support; wake changed from `d` to `g` |
+| Persistence after desktop reboot | NetworkManager reported `magic`; adapter reported `Wake-on: g` |
+| Local wake from suspend | Passed from Windows on home Wi-Fi and later from the HP relay |
+| Ubuntu Server installation | Completed; Wi-Fi, SSH and updates verified |
+| Relay recovery after reboot | SSH reconnected and hostname/uptime checks passed |
+| Lid behavior | External-power ignore policy saved; SSH remained available during the lid-test workflow. Screenshot alone does not show lid position |
+| Private SSH to relay | Passed over the relay’s Tailscale address |
+| Cellular hotspot → relay → wake → NoMachine | **Passed, confirmed November 27** |
+| Multiple displays and audio | Confirmed in earlier NoMachine testing; not separately remeasured in the final hotspot run |
+| Wake from full shutdown | Not tested; not required for the completed suspend-wake goal |
+| SSH keys / MFA / least-privilege policy and firewall review | Follow-up work, not claimed complete |
 
-**Planned remote-wake path:** Windows laptop → Tailscale → always-on laptop at home → local wake packet → Ubuntu starts → NoMachine connection.
+## Build and troubleshooting
 
-The desktop uses wired Ethernet. Tailscale makes the running computers privately reachable without exposing NoMachine’s desktop service through a router port-forward. It cannot receive a request on a computer that is asleep or powered off. That distinction became the main lesson of the hotspot test.
+I enabled magic-packet wake on the desktop and saved it in Netplan and the NetworkManager profile. A Netplan reload warning required checking the active network services and the adapter afterward. Reboot verification established that the wake setting persisted.
 
-<figure><img src="assets/connection-map.svg" alt="Diagram separating the working remote-control connection from the planned home wake relay" loading="lazy"><figcaption>The current access path and the remaining remote-wake architecture.</figcaption></figure>
+The first direct wake attempt from a phone hotspot failed: a local broadcast from that network could not reach my home LAN. Repurposing the HP as a relay solved this. I installed Ubuntu Server from USB, selected the internal Samsung SSD with a 100 GB root LVM volume, connected Wi-Fi, and enabled OpenSSH. I checked the SSH host fingerprint on the physical laptop before accepting it remotely.
 
-## Making wake settings persistent
+After updating the relay and installing `wakeonlan`, I restored suspend on the desktop by unmasking `sleep.target` and `suspend.target`. Hibernate targets were left unchanged. I configured the relay to ignore lid closure on external power, rebooted it, and verified SSH access. Tailscale then provided private access to the relay from the Windows client on cellular data.
 
-The adapter initially reported `Wake-on: d`, meaning waking was disabled. I enabled magic-packet wake on `enp3s0`, then saved it in Netplan and explicitly set the NetworkManager connection profile to `magic`.
+Two other issues were investigated:
 
-Applying Netplan produced a network-service reload warning. I checked the active services and confirmed Ethernet remained connected through NetworkManager. I then checked the profile rather than assuming the saved configuration had taken effect.
+- **Startup login refusal:** a temporary `pam_nologin` message cleared after boot completed.
+- **127°C banner reading:** `lm-sensors` showed CPU cores around 40–42°C while ACPI `temp6` reported 127°C. The laptop did not feel hot. The ACPI reading is suspect; its root cause and overall hardware health were not established.
 
-After restarting, these checks still returned the expected values:
+NoMachine initially required Personal Edition evaluation activation. A subsequent blank-screen issue was investigated through display/sharing settings and capture logs; later desktop control, monitor switching and audio worked. No single cause for the blank screen was proven. Continued use still requires checking the installed edition’s licensing terms.
 
-```bash
-nmcli -g 802-3-ethernet.wake-on-lan connection show "netplan-enp3s0"
-# magic
+## Why NoMachine
 
-sudo ethtool enp3s0 | grep -i wake
-# Supports Wake-on: pumbg
-# Wake-on: g
-```
+My goal was to return to the same physical Ubuntu desktop, including open terminals and VM consoles. NoMachine supports physical Wayland desktops. A typical xrdp/xorgxrdp deployment provides a separate Xorg remote session, which is useful for a dedicated remote workspace but differs from this lab’s goal. Both can be reached over Tailscale; NoMachine is not the source of the private network protection.
 
-These are transcribed verification results from my lab notes. I kept the original configuration screenshots privately because they also contain device and network identifiers.
+## Evidence and reproduction
 
-<figure><img src="assets/wake-verification.svg" alt="Transcribed wake verification: NetworkManager magic, adapter support pumbg, enabled setting g" loading="lazy"><figcaption>A readable transcription of the reboot check, not a recreated screenshot.</figcaption></figure>
+- [Complete gallery: all 18 screenshots from the lab folder](docs/evidence-review.md)
+- [Configuration walkthrough and operating procedure](docs/configuration-walkthrough.md)
+- [Security boundaries and optional next tests](docs/security-and-next-tests.md)
+- [Portfolio handoff](docs/portfolio-handoff.md)
+- [Earlier silent remote-control demonstration](assets/remote-control-demo.mp4)
 
-On Windows, I created a reusable `Send-DesktopWake` PowerShell function. It builds the magic packet from the desktop’s Ethernet MAC address and sends it over UDP to the home subnet’s broadcast address. I suspended Ubuntu, sent the packet from my laptop on home Wi-Fi, and watched the desktop resume. A “packet sent” message alone would not have proved the wake succeeded.
+Published screenshots are actual captures with opaque redactions, reduced resolution where appropriate, and metadata removed. Hardware identifiers, network addresses, Wi-Fi names, account emails and authentication URLs are excluded. Original files remain private and unchanged. No AI-generated screenshots or fabricated test output are used.
 
-## Troubleshooting the remote session
+## Scope and limitations
 
-My first NoMachine connection reached Ubuntu but stopped at a license error. Activating the Personal Edition evaluation let me continue; this setup currently uses a trial, so ongoing use requires a licensing decision.
+This is a completed functional home lab, not a security audit or a claim of production hardening. Password-based SSH was used; SSH keys were discussed but not configured. Tailscale identity/account protection, device permissions, firewall reachability and NoMachine licensing still deserve review. Power loss, full-shutdown wake, prolonged unattended operation and automatic recovery were not validated. The relay must remain powered, awake and connected; the desktop must retain power and its wired network connection.
 
-Next, the laptop showed a blank screen while Ubuntu reported an active viewer. I investigated screen-sharing and display settings rather than assuming Tailscale had failed. Earlier session logs showed Wayland capture errors; later logs showed successful capture and hardware encoding. I eventually confirmed desktop control, monitor switching, and audio were working. I have not established a single proven cause for the initial delay.
-
-<figure><video controls playsinline preload="none" poster="assets/remote-session.png" style="width:100%;max-width:464px;max-height:620px;display:block;margin:auto"><source src="assets/remote-control-demo.mp4" type="video/mp4">Watch the <a href="assets/remote-control-demo.mp4">remote-control demonstration</a>.</video><figcaption>A short recording from my working session, showing interaction from the laptop and the corresponding desktop display. This published excerpt is silent; audio functionality is recorded in the test results above.</figcaption></figure>
-
-## The checks that made the result meaningful
-
-I separated connectivity from functionality. Reaching the login prompt showed that the remote service was reachable; it did not prove the display would render. Likewise, a desktop image did not prove I could switch monitors or hear sound. I checked those separately before calling the session usable.
-
-For the dual-monitor setup, I used NoMachine’s display controls to switch remote monitors or view them together. Viewing one monitor at a time keeps text easier to read on a smaller laptop screen. Audio needed its own check through the session’s audio controls and the Windows output device.
-
-The video above is a phone recording of this test, not a native screen recording. It now preserves the original video stream without an additional compression pass. A full-resolution screen capture is a future evidence improvement; upscaling this recording would not recover missing text detail.
-
-## Why the hotspot wake test failed
-
-Changing the laptop to my phone’s hotspot moved it off the home network. My PowerShell function still sent a local broadcast wake packet, so it could no longer reach the sleeping desktop at home. Installing Tailscale on the desktop did not solve this: the desktop’s software is not running while it is off or asleep.
-
-I checked my Verizon CR1000A router’s documented capabilities and did not find a built-in wake sender to use for this setup. The next step is to keep a spare laptop powered at home, connect it to Tailscale, and use it to send the local wake packet on request. The spare laptop still needs a charger.
-
-## Security decisions and limits
-
-I used private connectivity instead of adding an internet-facing remote-desktop port-forward for this lab. Ubuntu still requires a system-account login. That reduces exposure, but it is not a claim that the entire setup has been security-audited.
-
-Before adding the wake relay, I still need to review account MFA, authorized devices, access rules, firewall reachability, and update settings. The relay should only be reachable by my intended devices and have only the access it needs. I also keep authentication URLs, keys, MAC addresses, and personal network information out of the published evidence.
-
-## The remaining milestone
-
-**Set up the always-on home laptop as the wake relay.** Then I’ll repeat the test from cellular data: wake Ubuntu, wait for Tailscale to reconnect, open NoMachine, and access a lab VM. I’ll test suspend and full shutdown separately and record the result of each. I’m not marking end-to-end remote power-on complete until that test passes.
-
-For the portfolio, I selected demonstration footage rather than publishing every raw recording. Earlier blank-screen clips and screenshots with authentication links remain in my private troubleshooting evidence. Credentials, license keys, and personal network details do not belong in the public write-up.
+Turning the relay into a router is a separate future project.
 
 ## References
 
-- [Tailscale: building a remote Wake-on-LAN setup](https://tailscale.com/blog/wake-on-lan-tailscale-upsnap)
-- [NoMachine: switching between remote monitors](https://www.nomachine.com/support/documents/switching-the-view-between-multi-monitors-during-a-remote-desktop-session)
-- [NoMachine Player configuration guide](https://kb.nomachine.com/DT07X00338)
-- [Verizon CR1000A router guide](https://www.verizon.com/content/dam/verizon/support/consumer/documents/internet/verizon-router-guide.pdf)
-
-## Supporting documentation
-
-- [Evidence review](docs/evidence-review.md)
-- [Security and remaining tests](docs/security-and-next-tests.md)
-- [Configuration walkthrough](docs/configuration-walkthrough.md)
+- [Tailscale: Wake-on-LAN through a home relay](https://tailscale.com/blog/wake-on-lan-tailscale-upsnap)
+- [Tailscale: ordinary SSH over Tailscale](https://tailscale.com/docs/reference/ssh-over-tailscale)
+- [systemd lid and idle behavior](https://www.freedesktop.org/software/systemd/man/latest/logind.conf.html)
+- [NoMachine physical Wayland desktops](https://kb.nomachine.com/AR02P00969)
+- [xrdp project documentation](https://github.com/neutrinolabs/xrdp)

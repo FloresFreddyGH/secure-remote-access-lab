@@ -55,6 +55,104 @@ Tailscale was installed and authenticated on both computers. NoMachine Personal 
 
 ![Access paths](../assets/connection-map.svg)
 
-## 6. Next implementation
+## 6. Install the HP relay
 
-Power a spare laptop at home, install/configure private access to it, prevent suspend, and let it send the wake packet locally. The spare laptop currently needs its charger. Repeat the full hotspot-to-wake-to-desktop sequence, then independently test shutdown wake, lock/reconnect, and VM access. Record timings and failures.
+Back up anything needed before replacing an operating system. In this lab the owner confirmed the old Windows installation contained nothing needed. Write the Ubuntu Server ISO to the 16 GB USB and boot the HP from its UEFI USB entry. Select standard Ubuntu Server, connect Wi-Fi, leave proxy empty and confirm the archive mirror test. Select the **HP internal SSD**, not the USB or another computer’s disk.
+
+The installed layout used LVM: approximately 100 GB root, 2 GB boot and 1 GB EFI, with remaining volume-group capacity unallocated. Disk encryption was not selected to allow unattended startup; physical access therefore remains a consideration. Create the local account and hostname `home-wake-relay`, enable OpenSSH, skip optional featured snaps, complete installation and remove the USB when prompted.
+
+On the relay console, obtain the SSH host fingerprint:
+
+```bash
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+Compare it with the first connection prompt on the client before accepting. Commands below use placeholders; replace them with your own values, without the angle brackets.
+
+```bash
+ssh <RELAY_USER>@<RELAY_LAN_IP>
+```
+
+Inside the relay session:
+
+```bash
+hostname
+whoami
+sudo apt update
+sudo apt upgrade
+sudo apt install lm-sensors wakeonlan
+sensors
+sudo reboot
+```
+
+A disconnect during reboot is expected. Reconnect after startup. In this lab an early `pam_nologin` refusal resolved after waiting; there was no need to bypass login controls.
+
+## 7. Configure lid handling on the relay
+
+Create `/etc/systemd/logind.conf.d/60-wake-relay.conf` with:
+
+```ini
+[Login]
+HandleLidSwitch=suspend
+HandleLidSwitchExternalPower=ignore
+HandleLidSwitchDocked=ignore
+IdleAction=ignore
+```
+
+Use `sudo mkdir -p /etc/systemd/logind.conf.d`, then edit the file with sudo. Reboot and verify the file, hostname and uptime after reconnecting. On external power the policy ignores lid closure; the ordinary battery policy requests suspend, subject to docked handling and other system inhibitors. Keep the relay plugged in with ventilation unobstructed. The saved file and reboot/reconnection are captured in the gallery; the screenshot itself cannot prove physical lid position.
+
+## 8. Restore desktop suspend if disabled
+
+Run these checks on the **desktop**, not the relay:
+
+```bash
+hostname
+systemctl is-enabled sleep.target suspend.target hibernate.target hybrid-sleep.target
+cat /sys/power/state
+```
+
+All four targets were masked in this lab, while the kernel listed `freeze mem disk`. To restore only the required suspend path:
+
+```bash
+sudo systemctl unmask sleep.target suspend.target
+```
+
+After saving work and stopping running lab VMs, use `systemctl suspend`. Hibernate and hybrid-sleep were not enabled by this change.
+
+## 9. Add the relay to Tailscale
+
+Install Tailscale using its [official Linux instructions](https://tailscale.com/docs/install/linux). The lab used the official installation script, then:
+
+```bash
+sudo tailscale up
+tailscale ip -4
+tailscale status
+```
+
+Authenticate to the intended tailnet privately. Never publish the authentication URL. From Windows PowerShell with Tailscale connected:
+
+```powershell
+ssh <RELAY_USER>@<RELAY_TAILSCALE_IP>
+```
+
+Verify the host fingerprint matches the previously verified relay key. This is OpenSSH over Tailscale, not the separate Tailscale SSH feature. No `--ssh`, exit-node or subnet-router configuration was used.
+
+## 10. Complete off-network acceptance test — passed
+
+1. Keep the HP relay awake, plugged in and connected to home Wi-Fi.
+2. Connect Windows to an iPhone hotspot using cellular data; disconnect home network links.
+3. Establish SSH to the relay’s Tailscale address and check `hostname`.
+4. Save desktop work, stop lab VMs cleanly, and suspend the Ethernet-connected desktop.
+5. In the Windows-to-relay SSH session, run:
+
+```bash
+wakeonlan -i <HOME_SUBNET_BROADCAST> <DESKTOP_ETHERNET_MAC>
+```
+
+6. Observe the desktop resume, allow connectivity to return, and connect NoMachine to `<DESKTOP_TAILSCALE_IP>` using the desktop account.
+
+Freddy confirmed the whole sequence succeeded over the iPhone hotspot on November 27, 2026. The final photograph shows NoMachine displaying the Ubuntu desktop. No precise wake latency was measured. The sender’s “packet sent” message is not treated as evidence of actual wake. Full-shutdown wake was not tested.
+
+## Daily use and recovery
+
+From the remote client, connect Tailscale, SSH to the awake relay, send the wake command, then connect NoMachine to the desktop. Leave the relay awake when suspending the desktop. If the relay is unreachable, check its power, Wi-Fi, lid/sleep state and Tailscale status locally. If wake fails, check the desktop’s Ethernet link, power and `Wake-on: g` setting. If the desktop wakes but its GUI fails, diagnose NoMachine separately from the wake path.

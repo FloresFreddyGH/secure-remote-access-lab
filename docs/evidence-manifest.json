@@ -1,0 +1,74 @@
+[
+  {
+    "file": "assets/evidence/01-wol-enabled.png",
+    "sha256": "11798a285a8c159d96430bb1730286f602e56594bcf4107b7b539a21a8772a3d"
+  },
+  {
+    "file": "assets/evidence/02-network-configuration.png",
+    "sha256": "437989652ef7c90fcb69f658c5b1280a237e76188de005813f83b8da47e2f5d8"
+  },
+  {
+    "file": "assets/evidence/03-wol-persistence.png",
+    "sha256": "1654726825e8cc6a2ff716d591d4d5628e48b173aebd4697fc7938aac8463654"
+  },
+  {
+    "file": "assets/evidence/04-wol-after-reboot.png",
+    "sha256": "56786691112b8f701a8f8933bc0c58b8947b81d36fa0354a203de7b2b11c1845"
+  },
+  {
+    "file": "assets/evidence/05-relay-tailscale-connected.png",
+    "sha256": "c4e8cf5f39ebb75c485b4949e8495d34c4645f72d00fbe43e7412178f943e023"
+  },
+  {
+    "file": "assets/evidence/06-desktop-tailscale-device.png",
+    "sha256": "a694cc737571c378b9ceb62a5d352e8dc284f91ebf539fe961e27dd7cf2a52ec"
+  },
+  {
+    "file": "assets/evidence/07-relay-storage-summary.png",
+    "sha256": "da73b6af5013e1ed17df5eb65bc29253adfced6bd7c662c3bacf625b82749018"
+  },
+  {
+    "file": "assets/evidence/08-relay-lid-configuration.png",
+    "sha256": "6bc51fea807e6b54496fb6af8caa4cc128605c6ce7d70cd2b2ec7f049cadb724"
+  },
+  {
+    "file": "assets/evidence/09-desktop-tailscale-onboarding.png",
+    "sha256": "de2648ab28b02646ed269af15a1fb15afb65f51f19ad39df2f53106ba1adf62a"
+  },
+  {
+    "file": "assets/evidence/10-relay-hardware.png",
+    "sha256": "9ad4e52c16dc58318d7bdc0723c12b24668121c0847897f9b6cbbdc8f3df896a"
+  },
+  {
+    "file": "assets/evidence/11-relay-reboot-ssh.png",
+    "sha256": "7aab196596aa71af9dbbcfd2ebf502217de4eb72e58d53e0ff5b69eef3c06786"
+  },
+  {
+    "file": "assets/evidence/12-relay-ssh-installer.png",
+    "sha256": "024d3e58acf0d7d7136333f7862d758aac56800cfc479567f128163e507ac7de"
+  },
+  {
+    "file": "assets/evidence/13-windows-relay-ssh.png",
+    "sha256": "73ef5e1d6a50bc3f19b9095d66fd30dbae6abdb19249e0a2785ccf9a623e0cf2"
+  },
+  {
+    "file": "assets/evidence/14-relay-wifi-connected.png",
+    "sha256": "0fa2e0ff8c80a0339365ca9f278f0f34663ecaa943f251870389b4648f47f0cc"
+  },
+  {
+    "file": "assets/evidence/15-relay-installation-complete.png",
+    "sha256": "93acdda65e61fd844063f4d6d3440ef05aafd8359ddcf52bd72bf8e7e93b15d0"
+  },
+  {
+    "file": "assets/evidence/16-server-usb-ready.png",
+    "sha256": "913cb40f87777417a6086c117f4cc14ec0c43d97af38f8233a4e565cc4f1ab52"
+  },
+  {
+    "file": "assets/evidence/17-installer-language.png",
+    "sha256": "bfba732605033bd513037b1be5bf01970edebbbd92de98d85729789dc22de9d8"
+  },
+  {
+    "file": "assets/evidence/18-hotspot-remote-desktop-success.png",
+    "sha256": "479f0f8dcfda23918cd001fb68b2e14169cec12b9c346dac84eadfb07847c764"
+  }
+]
